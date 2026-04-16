@@ -3,32 +3,32 @@
 MAIN CLASS - BookMyStayApp
 ================================================================================================================
 
-Use Case 7: Add-On Services for Reservations
+Use Case 8: Booking History and Reporting
 
 Description:
-This program extends the booking system to support optional add-on services without modifying
-core booking or allocation logic.
+This program introduces historical tracking of confirmed bookings to provide operational visibility
+and support reporting. Each confirmed reservation is stored in a BookingHistory component.
 
-Guests can select multiple services such as WiFi, Breakfast, or Parking for an existing
-reservation. These services are stored separately using a mapping from reservation ID to
-a list of selected services.
+A List is used to maintain bookings in insertion order, reflecting the sequence of confirmations.
+This enables chronological tracking and audit capability.
 
-A one-to-many relationship is maintained where one reservation can have multiple services.
-A combination of HashMap and List is used to efficiently manage and preserve service selections.
+A separate BookingReportService is responsible for generating reports from stored booking data.
+This ensures a clean separation between data storage and reporting logic.
 
-The AddOnServiceManager handles service association and calculates total additional cost.
-Core booking, allocation, and inventory remain unchanged.
+The system treats booking history as persistent information in memory, preparing for future
+extension to file or database storage.
 
 Key Concepts:
-- Business Extensibility
-- One-to-Many Relationship
-- Map + List Combination
-- Composition over Inheritance
-- Separation of Core and Optional Features
-- Cost Aggregation
+- Operational Visibility
+- List Data Structure
+- Ordered Storage
+- Historical Tracking
+- Reporting Readiness
+- Separation of Storage and Reporting
+- Persistence Mindset
 
 @author SAKET-2005
-@version 7.0
+@version 8.0
 ================================================================================================================
 */
 
@@ -119,6 +119,13 @@ class Reservation
     public String getGuestName() { return guestName; }
     public String getRoomType() { return roomType; }
     public String getReservationId() { return reservationId; }
+
+    public void display()
+    {
+        System.out.println("Reservation ID: " + reservationId +
+                " | Guest: " + guestName +
+                " | Room Type: " + roomType);
+    }
 }
 
 class BookingRequestQueue
@@ -141,11 +148,32 @@ class BookingRequestQueue
     }
 }
 
+class BookingHistory
+{
+    private List<Reservation> history = new ArrayList<>();
+
+    public void addReservation(Reservation r)
+    {
+        history.add(r);
+    }
+
+    public List<Reservation> getAllReservations()
+    {
+        return history;
+    }
+}
+
 class BookingService
 {
     private Set<String> allocatedRoomIds = new HashSet<>();
     private HashMap<String, Set<String>> allocationMap = new HashMap<>();
     private int idCounter = 1;
+    private BookingHistory history;
+
+    public BookingService(BookingHistory history)
+    {
+        this.history = history;
+    }
 
     public void processBookings(BookingRequestQueue queue, RoomInventory inventory)
     {
@@ -172,6 +200,8 @@ class BookingService
 
                 inventory.decrement(roomType);
 
+                history.addReservation(request);
+
                 System.out.println("Booking CONFIRMED");
                 System.out.println("Room ID: " + roomId);
                 System.out.println("Reservation ID: " + request.getReservationId());
@@ -182,75 +212,36 @@ class BookingService
             }
         }
     }
-
-    public void displayAllocations()
-    {
-        System.out.println("\nFinal Room Allocations:");
-
-        for(String type : allocationMap.keySet())
-        {
-            System.out.println(type + " -> " + allocationMap.get(type));
-        }
-    }
 }
 
-class AddOnService
+class BookingReportService
 {
-    private String serviceName;
-    private double cost;
-
-    public AddOnService(String serviceName, double cost)
+    public void displayAllBookings(BookingHistory history)
     {
-        this.serviceName = serviceName;
-        this.cost = cost;
-    }
+        System.out.println("\nBooking History:");
 
-    public String getServiceName() { return serviceName; }
-    public double getCost() { return cost; }
-}
-
-class AddOnServiceManager
-{
-    private HashMap<String, List<AddOnService>> serviceMap = new HashMap<>();
-
-    public void addService(String reservationId, AddOnService service)
-    {
-        serviceMap.putIfAbsent(reservationId, new ArrayList<>());
-        serviceMap.get(reservationId).add(service);
-    }
-
-    public void displayServices(String reservationId)
-    {
-        System.out.println("\nServices for Reservation: " + reservationId);
-
-        List<AddOnService> services = serviceMap.get(reservationId);
-
-        if(services == null || services.isEmpty())
+        for(Reservation r : history.getAllReservations())
         {
-            System.out.println("No services selected.");
-            return;
-        }
-
-        for(AddOnService s : services)
-        {
-            System.out.println(s.getServiceName() + " - " + s.getCost());
+            r.display();
         }
     }
 
-    public double calculateTotalCost(String reservationId)
+    public void generateSummary(BookingHistory history)
     {
-        double total = 0;
-        List<AddOnService> services = serviceMap.get(reservationId);
+        System.out.println("\nBooking Summary:");
 
-        if(services != null)
+        HashMap<String,Integer> summary = new HashMap<>();
+
+        for(Reservation r : history.getAllReservations())
         {
-            for(AddOnService s : services)
-            {
-                total += s.getCost();
-            }
+            String type = r.getRoomType();
+            summary.put(type, summary.getOrDefault(type,0)+1);
         }
 
-        return total;
+        for(String type : summary.keySet())
+        {
+            System.out.println(type + " Bookings: " + summary.get(type));
+        }
     }
 }
 
@@ -259,28 +250,23 @@ public class BookMyStayApp
     public static void main(String args[])
     {
         System.out.println("Welcome to Hotel Booking Management System!");
-        System.out.println("Version: 7.0\n");
+        System.out.println("Version: 8.0\n");
 
         RoomInventory inventory = new RoomInventory();
         BookingRequestQueue queue = new BookingRequestQueue();
+        BookingHistory history = new BookingHistory();
 
         queue.addRequest(new Reservation("Alice","Single Room","R1"));
         queue.addRequest(new Reservation("Bob","Double Room","R2"));
+        queue.addRequest(new Reservation("Charlie","Suite Room","R3"));
 
-        BookingService service = new BookingService();
+        BookingService service = new BookingService(history);
         service.processBookings(queue, inventory);
 
-        AddOnServiceManager addOnManager = new AddOnServiceManager();
+        BookingReportService reportService = new BookingReportService();
 
-        addOnManager.addService("R1", new AddOnService("Breakfast", 200));
-        addOnManager.addService("R1", new AddOnService("WiFi", 100));
-        addOnManager.addService("R2", new AddOnService("Parking", 150));
-
-        addOnManager.displayServices("R1");
-        System.out.println("Total Add-On Cost: " + addOnManager.calculateTotalCost("R1"));
-
-        addOnManager.displayServices("R2");
-        System.out.println("Total Add-On Cost: " + addOnManager.calculateTotalCost("R2"));
+        reportService.displayAllBookings(history);
+        reportService.generateSummary(history);
 
         System.out.println("\nRemaining Inventory:");
         inventory.displayInventory();
