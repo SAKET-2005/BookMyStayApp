@@ -3,27 +3,34 @@
 MAIN CLASS - BookMyStayApp
 ================================================================================================================
 
-Use Case 3: Centralized Room Inventory Management
+Use Case 4: Room Search with Read-Only Access
 
 Description:
-This program demonstrates centralized inventory management for hotel rooms using a HashMap.
-Instead of storing room availability in scattered variables, the system introduces a dedicated
-RoomInventory component responsible for maintaining and managing availability for all room types.
+This program enables guests to view available room options without modifying system state.
+A dedicated SearchService is introduced to handle read-only operations on room inventory.
 
-Room objects still model the characteristics of each room type using abstraction, inheritance,
-encapsulation, and polymorphism. However, room availability is now stored in a single HashMap
-that maps room types to their available counts. The inventory class provides controlled methods
-to retrieve and update availability, ensuring consistent state management across the system.
+The system retrieves availability from a centralized RoomInventory and uses Room objects
+to display details such as pricing and size. Only room types with availability greater
+than zero are shown to the guest.
 
-This design introduces the concept of a single source of truth, improves scalability, and
-separates room domain modeling from inventory management logic.
+This design ensures safe data access, prevents unintended modifications, and maintains
+a clear separation between search logic and inventory management.
+
+Key Concepts:
+- Read-Only Access
+- Defensive Programming
+- Separation of Concerns
+- Inventory as State Holder
+- Domain Model Usage
+- Validation Logic
 
 @author SAKET-2005
-@version 3.0
+@version 4.0
 ================================================================================================================
 */
 
 import java.util.HashMap;
+import java.util.ArrayList;
 
 abstract class Room
 {
@@ -112,17 +119,12 @@ class RoomInventory
         inventory=new HashMap<String,Integer>();
         inventory.put("Single Room",5);
         inventory.put("Double Room",3);
-        inventory.put("Suite Room",2);
+        inventory.put("Suite Room",0); // Example: unavailable room
     }
 
     public int getAvailability(String roomType)
     {
-        return inventory.get(roomType);
-    }
-
-    public void updateAvailability(String roomType,int count)
-    {
-        inventory.put(roomType,count);
+        return inventory.getOrDefault(roomType,0);
     }
 
     public void displayInventory()
@@ -134,34 +136,53 @@ class RoomInventory
     }
 }
 
+class SearchService
+{
+    public void searchAvailableRooms(ArrayList<Room> rooms, RoomInventory inventory)
+    {
+        System.out.println("Available Rooms:\n");
+
+        for(Room room : rooms)
+        {
+            int available = inventory.getAvailability(room.getRoomType());
+
+            // Defensive Programming: Only show valid available rooms
+            if(available > 0)
+            {
+                room.displayRoomDetails();
+                System.out.println("Available Rooms: "+available);
+                System.out.println();
+            }
+        }
+    }
+}
+
 public class BookMyStayApp
 {
     public static void main(String args[])
     {
         System.out.println("Welcome to Hotel Booking Management System!");
-        System.out.println("Version: 3.0");
+        System.out.println("Version: 4.0");
         System.out.println("Author: SAKET-2005");
         System.out.println();
 
-        Room single=new SingleRoom();
-        Room doubleRoom=new DoubleRoom();
-        Room suite=new SuiteRoom();
+        // Room objects (Domain Model)
+        ArrayList<Room> rooms = new ArrayList<Room>();
+        rooms.add(new SingleRoom());
+        rooms.add(new DoubleRoom());
+        rooms.add(new SuiteRoom());
 
-        RoomInventory inventory=new RoomInventory();
+        // Inventory (State Holder)
+        RoomInventory inventory = new RoomInventory();
 
-        single.displayRoomDetails();
-        System.out.println("Available Rooms: "+inventory.getAvailability(single.getRoomType()));
-        System.out.println();
+        // Search Service (Read-Only Access)
+        SearchService searchService = new SearchService();
 
-        doubleRoom.displayRoomDetails();
-        System.out.println("Available Rooms: "+inventory.getAvailability(doubleRoom.getRoomType()));
-        System.out.println();
+        // Guest initiates search
+        searchService.searchAvailableRooms(rooms, inventory);
 
-        suite.displayRoomDetails();
-        System.out.println("Available Rooms: "+inventory.getAvailability(suite.getRoomType()));
-        System.out.println();
-
-        System.out.println("Current Inventory State:");
+        // Verify inventory remains unchanged
+        System.out.println("Inventory State After Search (Unchanged):");
         inventory.displayInventory();
     }
 }
